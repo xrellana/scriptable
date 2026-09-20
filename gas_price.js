@@ -1102,9 +1102,9 @@ function makeMediumWidget(ctx) {
 
     `⛽ ${data.province || region}油价`,
 
-    15,
+    13,
 
-    "bold",
+    "medium",
 
     COLORS.primary
   );
@@ -1201,10 +1201,11 @@ function makeMediumWidget(ctx) {
 
 
   // ======================================
-  // 中间间隔
+  // 中间间隔自适应，让两侧逻辑块分别对齐
+  // 到中号 Widget 的左右半区
   // ======================================
 
-  body.addSpacer(22);
+  body.addSpacer();
 
 
   // ======================================
@@ -1215,6 +1216,12 @@ function makeMediumWidget(ctx) {
     body.addStack();
 
   right.layoutVertically();
+
+  right.size =
+    new Size(
+      132,
+      0
+    );
 
 
   // --------------------------------
