@@ -1,0 +1,2 @@
+# scriptable
+js script
