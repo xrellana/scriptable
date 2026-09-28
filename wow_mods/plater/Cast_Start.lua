@@ -1,18 +1,23 @@
 function (self, unit, unitFrame, envTable, modTable)
 
-    local spellID = self.SpellID
-
-    if not spellID then
-        return
-    end
-
-
     ------------------------------------------------------------
     -- Undo whatever this mod applied to the previous cast
     ------------------------------------------------------------
 
     if envTable.Active then
         modTable.RestoreCastBar(unitFrame, envTable)
+    end
+
+
+    ------------------------------------------------------------
+    -- A secret spell ID cannot be looked up; Plater skips its own
+    -- per-spell cast colors in that case too, so do the same.
+    ------------------------------------------------------------
+
+    local spellID = self.SpellID
+
+    if not spellID or modTable.IsSecret(spellID) then
+        return
     end
 
 
@@ -40,26 +45,26 @@ function (self, unit, unitFrame, envTable, modTable)
     -- the modTable helpers, never test or compare it here.
     ------------------------------------------------------------
 
-    local canInterrupt = self.CanInterrupt
+    local notInterruptible = self.notInterruptible
 
 
     ------------------------------------------------------------
-    -- Danger spells get a bigger bar. The bar is at profile
-    -- size here: nothing enlarged it, or RestoreCastBar reset it.
+    -- Danger spells enlarge the whole nameplate, not just the
+    -- cast bar, so the plate keeps its proportions.
     ------------------------------------------------------------
 
     if envTable.CurrentPriority == "danger" then
 
-        Plater.SetCastBarSize(
-            unitFrame,
-            self:GetWidth()  * modTable.WIDTH_SCALE,
-            self:GetHeight() * modTable.HEIGHT_SCALE
-        )
+        Plater.SetNameplateScale(unitFrame, modTable.DANGER_PLATE_SCALE)
+
+        envTable.Scaled = true
     end
 
 
-    modTable.ApplyCastColor(self, unitFrame, envTable, canInterrupt)
-    modTable.UpdateKickBorder(envTable, canInterrupt)
+    modTable.ApplyCastColor(self, unitFrame, envTable, notInterruptible)
+
+    modTable.StartKickGlow(envTable)
+    modTable.UpdateKickBorder(envTable, notInterruptible)
 
     envTable.Active = true
 end

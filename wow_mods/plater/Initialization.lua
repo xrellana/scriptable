@@ -4,8 +4,9 @@ function (modTable)
     -- SETTINGS
     ----------------------------------------------------------------
 
-    modTable.WIDTH_SCALE  = 1.20
-    modTable.HEIGHT_SCALE = 1.50
+    -- Danger spells scale the whole nameplate (health bar, name,
+    -- cast bar, auras) uniformly via Plater.SetNameplateScale.
+    modTable.DANGER_PLATE_SCALE = 1.25
 
     -- Set this when auto-detection picks the wrong interrupt,
     -- e.g. 57994 for Wind Shear. nil = auto-detect.
@@ -14,6 +15,16 @@ function (modTable)
     modTable.COLOR_DANGER = { 1.00, 0.08, 0.08 } -- high priority, interruptible
     modTable.COLOR_NORMAL = { 1.00, 0.82, 0.08 } -- low priority, interruptible
     modTable.COLOR_LOCKED = { 0.72, 0.16, 0.95 } -- not interruptible
+
+    -- Kick-ready indicator: lines running around the cast bar
+    -- (Plater.StartPixelGlow, backed by LibCustomGlow).
+    modTable.KICK_GLOW = {
+        color     = { 0.10, 1.00, 0.20, 1 },
+        lines     = 8,
+        frequency = 0.4, -- laps per second
+        thickness = 2,
+        offset    = 2,   -- pixels outside the cast bar edge
+    }
 
     -- A cooldown this close to ending already counts as ready.
     local READY_TOLERANCE = 0.10
@@ -28,7 +39,7 @@ function (modTable)
     ----------------------------------------------------------------
     -- DANGEROUS INTERRUPTS
     -- High priority: red when interruptible, purple when not,
-    -- and the cast bar is enlarged.
+    -- and the whole nameplate is enlarged.
     ----------------------------------------------------------------
 
     modTable.DangerSpells = {
@@ -131,7 +142,7 @@ function (modTable)
     -- DANGEROUS MECHANICS
     -- Usually not answered by a plain kick, but still worth a big
     -- warning. Treated like danger spells, so the color still
-    -- follows CanInterrupt: red if interruptible, purple if not.
+    -- follows interruptibility: red if interruptible, purple if not.
     ----------------------------------------------------------------
 
     modTable.MechanicSpells = {
@@ -269,7 +280,8 @@ function (modTable)
 
     ----------------------------------------------------------------
     -- HELPER: secret values
-    -- In combat, CanInterrupt and spell cooldowns can be secret.
+    -- In combat, notInterruptible, enemy spell IDs and spell
+    -- cooldowns can be secret.
     -- A secret value must never be tested, compared or used in
     -- arithmetic; it can only be handed to APIs that accept it.
     ----------------------------------------------------------------
@@ -496,7 +508,11 @@ function (modTable)
     -- HELPER: cast bar color
     ----------------------------------------------------------------
 
-    modTable.ApplyCastColor = function(castBar, unitFrame, envTable, canInterrupt)
+    -- notInterruptible comes straight from the cast bar
+    -- (castBar.notInterruptible). Plater sets castBar.CanInterrupt to
+    -- nil on Midnight clients, so it cannot be used.
+
+    modTable.ApplyCastColor = function(castBar, unitFrame, envTable, notInterruptible)
 
         local open =
             envTable.CurrentPriority == "danger" and
@@ -505,17 +521,17 @@ function (modTable)
 
         local locked = modTable.COLOR_LOCKED
 
-        if not modTable.IsSecret(canInterrupt) then
+        if not modTable.IsSecret(notInterruptible) then
 
-            local color = canInterrupt == true and open or locked
+            local color = notInterruptible == true and locked or open
 
             Plater.SetCastBarColor(unitFrame, color[1], color[2], color[3])
 
-            envTable.LastCanInterrupt = canInterrupt == true
+            envTable.LastNotInterruptible = notInterruptible == true
             return
         end
 
-        envTable.LastCanInterrupt = nil
+        envTable.LastNotInterruptible = nil
 
         local pick =
             C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean
@@ -527,13 +543,57 @@ function (modTable)
             return
         end
 
-        -- The evaluated channels are secret too. Plater.SetCastBarColor
-        -- may test its arguments, so write to the status bar directly.
-        castBar:SetStatusBarColor(
-            pick(canInterrupt, open[1], locked[1]),
-            pick(canInterrupt, open[2], locked[2]),
-            pick(canInterrupt, open[3], locked[3])
+        -- The evaluated channels are secret too, and Plater.SetCastBarColor
+        -- parses its arguments, so color the bar texture the same way
+        -- DetailsFramework's UpdateCastColor does.
+        castBar:GetStatusBarTexture():SetVertexColor(
+            pick(notInterruptible, locked[1], open[1]),
+            pick(notInterruptible, locked[2], open[2]),
+            pick(notInterruptible, locked[3], open[3])
         )
+    end
+
+
+    ----------------------------------------------------------------
+    -- HELPER: kick-ready glow
+    -- The glow lives inside envTable.KickBorder, so hiding the
+    -- border or setting its alpha from a secret boolean also
+    -- governs the glow without ever branching on the secret.
+    ----------------------------------------------------------------
+
+    local GLOW_KEY = "PlaterKickAlert"
+
+    local glowOptions = {
+        glowType  = "pixel",
+        N         = modTable.KICK_GLOW.lines,
+        frequency = modTable.KICK_GLOW.frequency,
+        th        = modTable.KICK_GLOW.thickness,
+        xOffset   = modTable.KICK_GLOW.offset,
+        yOffset   = modTable.KICK_GLOW.offset,
+        border    = false,
+        key       = GLOW_KEY,
+    }
+
+    -- Called from Cast Start, when the cast bar has a real size:
+    -- LibCustomGlow sizes the line length once at start, capped by
+    -- the frame height. Nameplate scale does not change local sizes.
+    modTable.StartKickGlow = function(envTable)
+
+        if envTable.KickBorder and Plater.StartPixelGlow then
+            Plater.StartPixelGlow(
+                envTable.KickBorder,
+                modTable.KICK_GLOW.color,
+                glowOptions,
+                GLOW_KEY
+            )
+        end
+    end
+
+    modTable.StopKickGlow = function(envTable)
+
+        if envTable.KickBorder and Plater.StopPixelGlow then
+            Plater.StopPixelGlow(envTable.KickBorder, GLOW_KEY)
+        end
     end
 
 
@@ -543,7 +603,7 @@ function (modTable)
     -- is off cooldown.
     ----------------------------------------------------------------
 
-    modTable.UpdateKickBorder = function(envTable, canInterrupt)
+    modTable.UpdateKickBorder = function(envTable, notInterruptible)
 
         local border = envTable.KickBorder
 
@@ -556,18 +616,18 @@ function (modTable)
             return
         end
 
-        if not modTable.IsSecret(canInterrupt) then
+        if not modTable.IsSecret(notInterruptible) then
             border:SetAlpha(1)
-            border:SetShown(canInterrupt == true)
+            border:SetShown(notInterruptible ~= true)
             return
         end
 
         if border.SetAlphaFromBoolean then
-            border:SetAlphaFromBoolean(canInterrupt, 1, 0)
+            border:SetAlphaFromBoolean(notInterruptible, 0, 1)
 
         elseif C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean then
             border:SetAlpha(
-                C_CurveUtil.EvaluateColorValueFromBoolean(canInterrupt, 1, 0)
+                C_CurveUtil.EvaluateColorValueFromBoolean(notInterruptible, 0, 1)
             )
 
         else
@@ -587,14 +647,22 @@ function (modTable)
     modTable.RestoreCastBar = function(unitFrame, envTable)
 
         Plater.SetCastBarColor(unitFrame)
-        Plater.SetCastBarSize(unitFrame)
+
+        -- Only undo a scale we set, so a scale from another mod or
+        -- script stays intact for unlisted casts.
+        if envTable.Scaled then
+            Plater.SetNameplateScale(unitFrame, 1)
+            envTable.Scaled = nil
+        end
 
         if envTable.KickBorder then
             envTable.KickBorder:Hide()
         end
 
-        envTable.Active           = nil
-        envTable.CurrentPriority  = nil
-        envTable.LastCanInterrupt = nil
+        modTable.StopKickGlow(envTable)
+
+        envTable.Active              = nil
+        envTable.CurrentPriority      = nil
+        envTable.LastNotInterruptible = nil
     end
 end

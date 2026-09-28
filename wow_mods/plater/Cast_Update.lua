@@ -4,7 +4,7 @@ function (self, unit, unitFrame, envTable, modTable)
         return
     end
 
-    local canInterrupt = self.CanInterrupt
+    local notInterruptible = self.notInterruptible
 
 
     ------------------------------------------------------------
@@ -12,10 +12,10 @@ function (self, unit, unitFrame, envTable, modTable)
     -- cannot be compared, so in that case reapply every tick.
     ------------------------------------------------------------
 
-    if modTable.IsSecret(canInterrupt) or
-       (canInterrupt == true) ~= envTable.LastCanInterrupt then
+    if modTable.IsSecret(notInterruptible) or
+       (notInterruptible == true) ~= envTable.LastNotInterruptible then
 
-        modTable.ApplyCastColor(self, unitFrame, envTable, canInterrupt)
+        modTable.ApplyCastColor(self, unitFrame, envTable, notInterruptible)
     end
 
 
@@ -23,5 +23,5 @@ function (self, unit, unitFrame, envTable, modTable)
     -- Track our own interrupt cooldown live
     ------------------------------------------------------------
 
-    modTable.UpdateKickBorder(envTable, canInterrupt)
+    modTable.UpdateKickBorder(envTable, notInterruptible)
 end
