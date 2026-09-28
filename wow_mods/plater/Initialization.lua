@@ -6,7 +6,12 @@ function (modTable)
 
     -- Danger spells scale the whole nameplate (health bar, name,
     -- cast bar, auras) uniformly via Plater.SetNameplateScale.
+    -- Multiplies any scale already set, e.g. by a minor-units mod.
     modTable.DANGER_PLATE_SCALE = 1.25
+
+    -- true = print one chat line per listed cast (spell, priority,
+    -- plate scale before and after) and per skipped secret spell ID.
+    modTable.DEBUG = false
 
     -- Set this when auto-detection picks the wrong interrupt,
     -- e.g. 57994 for Wind Shear. nil = auto-detect.
@@ -526,12 +531,8 @@ function (modTable)
             local color = notInterruptible == true and locked or open
 
             Plater.SetCastBarColor(unitFrame, color[1], color[2], color[3])
-
-            envTable.LastNotInterruptible = notInterruptible == true
             return
         end
-
-        envTable.LastNotInterruptible = nil
 
         local pick =
             C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean
@@ -648,11 +649,11 @@ function (modTable)
 
         Plater.SetCastBarColor(unitFrame)
 
-        -- Only undo a scale we set, so a scale from another mod or
-        -- script stays intact for unlisted casts.
-        if envTable.Scaled then
-            Plater.SetNameplateScale(unitFrame, 1)
-            envTable.Scaled = nil
+        -- Only undo a scale we set, and go back to the scale that was
+        -- there before (e.g. 0.9 from a minor-units mod), not to 1.
+        if envTable.ScaleBefore then
+            Plater.SetNameplateScale(unitFrame, envTable.ScaleBefore)
+            envTable.ScaleBefore = nil
         end
 
         if envTable.KickBorder then
@@ -661,8 +662,7 @@ function (modTable)
 
         modTable.StopKickGlow(envTable)
 
-        envTable.Active              = nil
-        envTable.CurrentPriority      = nil
-        envTable.LastNotInterruptible = nil
+        envTable.Active          = nil
+        envTable.CurrentPriority = nil
     end
 end

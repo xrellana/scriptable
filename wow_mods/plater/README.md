@@ -17,7 +17,7 @@ Each file is the body of one Plater Mod hook.
 | `Initialization.lua` | Initialization | Settings, spell lists, interrupt detection, cooldown tracking, event frame; shared by all nameplates |
 | `Constructor.lua` | Constructor | Creates the hidden container frame for the kick glow on each nameplate |
 | `Cast_Start.lua` | Cast Start | Classifies the spell, applies color and size, starts the kick glow |
-| `Cast_Update.lua` | Cast Update | Recolors when interruptibility flips, shows or hides the kick glow |
+| `Cast_Update.lua` | Cast Update | Repaints the bar every update, shows or hides the kick glow |
 | `Cast_Stop.lua` | Cast Stop | Restores Plater's color and size, stops the kick glow |
 | `Nameplate_Removed.lua` | Nameplate Removed | Same restore when a plate is recycled mid-cast |
 
@@ -39,7 +39,8 @@ All at the top of `Initialization.lua`.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `DANGER_PLATE_SCALE` | 1.25 | Scale of the whole nameplate (health bar, name, cast bar, auras) during a danger spell |
+| `DANGER_PLATE_SCALE` | 1.25 | Scale of the whole nameplate (health bar, name, cast bar, auras) during a danger spell, multiplied onto any scale already set |
+| `DEBUG` | false | Print one chat line per listed cast (spell ID, priority, plate scale before and after) and per skipped secret spell ID |
 | `INTERRUPT_OVERRIDE` | nil | Force an interrupt spell ID when auto-detection is wrong, e.g. 57994 |
 | `COLOR_DANGER` | 1.00, 0.08, 0.08 (red) | Danger spell, interruptible |
 | `COLOR_NORMAL` | 1.00, 0.82, 0.08 (yellow) | Normal spell, interruptible |
@@ -133,6 +134,8 @@ open-world mob that casts, look up the spell ID (e.g. with idTip), add it to
 ### Restore
 
 - [ ] After a cast ends or is interrupted, color and size return to normal
+- [ ] With a minor-units scaling mod: a small mob's plate returns to its
+      reduced size (not 1.0) after a danger cast
 - [ ] Killing a mob mid danger-cast leaves no enlarged or recolored plate on
       other plates afterwards
 - [ ] A listed cast followed by an unlisted cast on the same mob: the second
@@ -164,7 +167,8 @@ Checked against the Plater source (commit `36c2ee7`, 2026-09-27):
 | Listed spells sometimes look like Plater's default in combat | The spell ID was secret for that cast, so it could not be looked up | Which spell, in which dungeon, how often |
 | Error mentioning "secret" inside `Plater.SetCastBarColor` or `SetNameplateScale` | Plater cannot take a value we pass it | Full error text and stack |
 | Colors are right out of combat but wrong in combat | Writing a secret color to the bar texture does not stick | What color shows instead |
-| Color flips back to Plater's default mid-cast | Plater recolors on its own; the mod only reapplies on interruptibility changes | When during the cast it happens |
+| Bar shows yellow / orange / dull red instead of red / yellow / purple | Another mod paints the same bar every update; with Jundies' profile this is "Enhanced Castbar - Jundies - Midnight" | Turn off that mod's `showInterruptColor` option (its interrupt tick keeps working), or give this mod a lower Priority than it so this one paints last |
+| Nameplate does not grow on danger spells | Unknown yet; turn on `DEBUG` and watch one danger spell being cast | The chat line: whether it printed at all, "secret spell ID", or the two scale numbers |
 | Enlarged nameplate overlaps its neighbors | Nameplate stacking uses the unscaled plate size | Whether it hurts readability; lower `DANGER_PLATE_SCALE` |
 | Only part of the nameplate grows, or parts drift apart | `SetNameplateScale` takes a different path when Plater's "Use UIParent" option is on | Whether that option is on, a screenshot |
 | Nameplate stays enlarged after the cast | Restore did not run for that cast | What happened to the mob (killed, CC'd, out of range) |

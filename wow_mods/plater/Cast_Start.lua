@@ -16,7 +16,16 @@ function (self, unit, unitFrame, envTable, modTable)
 
     local spellID = self.SpellID
 
-    if not spellID or modTable.IsSecret(spellID) then
+    if not spellID then
+        return
+    end
+
+    if modTable.IsSecret(spellID) then
+
+        if modTable.DEBUG then
+            print("KickAlert: secret spell ID, cast skipped")
+        end
+
         return
     end
 
@@ -53,11 +62,21 @@ function (self, unit, unitFrame, envTable, modTable)
     -- cast bar, so the plate keeps its proportions.
     ------------------------------------------------------------
 
+    local scaleBefore = unitFrame:GetScale()
+
     if envTable.CurrentPriority == "danger" then
 
-        Plater.SetNameplateScale(unitFrame, modTable.DANGER_PLATE_SCALE)
+        local current = tonumber(unitFrame.nameplateScaleAdjust) or 1
 
-        envTable.Scaled = true
+        Plater.SetNameplateScale(unitFrame, current * modTable.DANGER_PLATE_SCALE)
+
+        envTable.ScaleBefore = current
+    end
+
+    if modTable.DEBUG then
+        print(("KickAlert: %d %s, plate scale %.2f -> %.2f"):format(
+            spellID, envTable.CurrentPriority,
+            scaleBefore, unitFrame:GetScale()))
     end
 
 

@@ -8,15 +8,12 @@ function (self, unit, unitFrame, envTable, modTable)
 
 
     ------------------------------------------------------------
-    -- Recolor only when the interrupt state flips. A secret flag
-    -- cannot be compared, so in that case reapply every tick.
+    -- Repaint on every update. Other cast bar mods (e.g. Jundies'
+    -- Enhanced Castbar) and Plater itself also color the bar, and
+    -- whoever paints last wins.
     ------------------------------------------------------------
 
-    if modTable.IsSecret(notInterruptible) or
-       (notInterruptible == true) ~= envTable.LastNotInterruptible then
-
-        modTable.ApplyCastColor(self, unitFrame, envTable, notInterruptible)
-    end
+    modTable.ApplyCastColor(self, unitFrame, envTable, notInterruptible)
 
 
     ------------------------------------------------------------
