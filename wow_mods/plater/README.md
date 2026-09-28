@@ -1,9 +1,10 @@
 # Plater interrupt alert mod
 
-Recolors and enlarges enemy cast bars for listed spells, and draws a green
-border around the cast bar while your own interrupt is off cooldown.
+Recolors enemy cast bars for listed spells, enlarges the whole nameplate for
+dangerous ones, and runs a green pixel glow around the cast bar while your own
+interrupt is off cooldown.
 
-- Danger spells: red when interruptible, purple when not, bar enlarged.
+- Danger spells: red when interruptible, purple when not, whole nameplate enlarged.
 - Normal spells: yellow when interruptible, purple when not.
 - Unlisted spells: left exactly as Plater draws them.
 
@@ -14,10 +15,10 @@ Each file is the body of one Plater Mod hook.
 | File | Plater hook | Purpose |
 | --- | --- | --- |
 | `Initialization.lua` | Initialization | Settings, spell lists, interrupt detection, cooldown tracking, event frame; shared by all nameplates |
-| `Constructor.lua` | Constructor | Creates the (hidden) kick border on each nameplate |
-| `Cast_Start.lua` | Cast Start | Classifies the spell, applies color, size and border |
-| `Cast_Update.lua` | Cast Update | Recolors when interruptibility flips, refreshes the border |
-| `Cast_Stop.lua` | Cast Stop | Restores Plater's color and size, hides the border |
+| `Constructor.lua` | Constructor | Creates the hidden container frame for the kick glow on each nameplate |
+| `Cast_Start.lua` | Cast Start | Classifies the spell, applies color and size, starts the kick glow |
+| `Cast_Update.lua` | Cast Update | Recolors when interruptibility flips, shows or hides the kick glow |
+| `Cast_Stop.lua` | Cast Stop | Restores Plater's color and size, stops the kick glow |
 | `Nameplate_Removed.lua` | Nameplate Removed | Same restore when a plate is recycled mid-cast |
 
 ## Installation
@@ -38,12 +39,16 @@ All at the top of `Initialization.lua`.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `WIDTH_SCALE` | 1.20 | Width multiplier for danger spells |
-| `HEIGHT_SCALE` | 1.50 | Height multiplier for danger spells |
+| `DANGER_PLATE_SCALE` | 1.25 | Scale of the whole nameplate (health bar, name, cast bar, auras) during a danger spell |
 | `INTERRUPT_OVERRIDE` | nil | Force an interrupt spell ID when auto-detection is wrong, e.g. 57994 |
 | `COLOR_DANGER` | 1.00, 0.08, 0.08 (red) | Danger spell, interruptible |
 | `COLOR_NORMAL` | 1.00, 0.82, 0.08 (yellow) | Normal spell, interruptible |
 | `COLOR_LOCKED` | 0.72, 0.16, 0.95 (purple) | Not interruptible |
+| `KICK_GLOW.color` | 0.10, 1.00, 0.20, 1 (green) | Glow line color |
+| `KICK_GLOW.lines` | 8 | Number of glow lines |
+| `KICK_GLOW.frequency` | 0.4 | Laps per second; negative reverses direction |
+| `KICK_GLOW.thickness` | 2 | Line thickness in pixels |
+| `KICK_GLOW.offset` | 2 | Pixels outside the cast bar edge |
 | `DEFAULT_COOLDOWN` | 15 s | Interrupt cooldown used when it can be neither read nor looked up |
 
 To add a spell, add `[spellID] = true` to `DangerSpells`, `NormalSpells` or
@@ -52,22 +57,23 @@ a separate table only for bookkeeping.
 
 ## Expected behavior
 
-| Spell list | Interruptible | Not interruptible | Bar size |
+| Spell list | Interruptible | Not interruptible | Nameplate size |
 | --- | --- | --- | --- |
-| `DangerSpells` / `MechanicSpells` | Red | Purple | Width x1.2, height x1.5 |
+| `DangerSpells` / `MechanicSpells` | Red | Purple | Whole nameplate x1.25 |
 | `NormalSpells` | Yellow | Purple | Unchanged |
 | Not listed | Plater default | Plater default | Unchanged |
 
-The green kick border (3 px) shows only when all three hold:
+The kick glow (green lines running around the cast bar, via
+`Plater.StartPixelGlow`) shows only when all three hold:
 
 - the spell is in one of the lists above,
 - the cast is currently interruptible,
 - your interrupt is off cooldown (within 0.1 s counts as ready).
 
-The border ignores range and facing. Using your interrupt hides every border
+The glow ignores range and facing. Using your interrupt hides every glow
 immediately; they come back when the cooldown ends. When a cast ends, is
 interrupted, or the unit dies or leaves view, the bar returns to Plater's
-default and the border hides.
+default and the glow stops.
 
 Interrupt auto-detection takes the first known spell in this order:
 
@@ -87,11 +93,11 @@ Interrupt auto-detection takes the first known spell in this order:
 | Demon Hunter | Disrupt 183752 |
 | Evoker | Quell 351338 |
 
-Specs without an interrupt (e.g. Holy/Discipline Priest) never show the border.
+Specs without an interrupt (e.g. Holy/Discipline Priest) never show the glow.
 
 ## In-game test checklist
 
-Secret values only appear in combat, so colors and the border must be tested
+Secret values only appear in combat, so colors and the glow must be tested
 in real fights. To test mechanics without entering a dungeon, find an
 open-world mob that casts, look up the spell ID (e.g. with idTip), add it to
 `DangerSpells` or `NormalSpells` temporarily, and remove it afterwards.
@@ -103,28 +109,31 @@ open-world mob that casts, look up the spell ID (e.g. with idTip), add it to
 
 ### Color and size (in combat)
 
-- [ ] Danger spell, interruptible: red, bar clearly larger
-- [ ] Danger spell, not interruptible: purple, bar larger
+- [ ] Danger spell, interruptible: red, whole nameplate larger and still in proportion
+- [ ] Danger spell, not interruptible: purple, whole nameplate larger
 - [ ] Normal spell, interruptible: yellow, size unchanged
 - [ ] Unlisted spell: identical to the mod being disabled
 - [ ] Color is not reverted to Plater's default partway through a cast
 - [ ] (When it happens) a cast that becomes uninterruptible mid-cast turns purple
 
-### Kick border (in combat)
+### Kick glow (in combat)
 
-- [ ] With interrupt ready, interruptible listed casts have the green border
-- [ ] Uninterruptible casts have no border
-- [ ] Using your interrupt hides all borders at once
-- [ ] Border returns when the cooldown ends; note how many seconds early or
+- [ ] With interrupt ready, interruptible listed casts have green lines
+      running around the bar
+- [ ] On an enlarged danger nameplate the lines follow the larger cast bar
+- [ ] Uninterruptible casts have no glow
+- [ ] Using your interrupt stops all glows at once
+- [ ] Glow returns when the cooldown ends; note how many seconds early or
       late it is compared to the action bar
 - [ ] Warlock: test with a Felhunter out and with Grimoire of Sacrifice
-- [ ] Druid: border works as Balance
-- [ ] After changing spec or talents, border still works without `/reload`
+- [ ] Druid: glow works as Balance
+- [ ] After changing spec or talents, glow still works without `/reload`
+- [ ] Glow speed, thickness and color feel right (tune `KICK_GLOW`)
 
 ### Restore
 
 - [ ] After a cast ends or is interrupted, color and size return to normal
-- [ ] Killing a mob mid danger-cast leaves no enlarged or recolored bar on
+- [ ] Killing a mob mid danger-cast leaves no enlarged or recolored plate on
       other plates afterwards
 - [ ] A listed cast followed by an unlisted cast on the same mob: the second
       one looks like Plater's default
@@ -136,21 +145,31 @@ open-world mob that casts, look up the spell ID (e.g. with idTip), add it to
 
 ## Known risks and troubleshooting
 
-The code assumes enemy spell IDs are plain values, while the interruptible
-flag (`self.CanInterrupt`) and spell cooldowns can be secret in combat.
-Secret values are never tested or compared; they are only passed to APIs
-that accept them.
+The interruptible flag (`self.notInterruptible`), enemy spell IDs and spell
+cooldowns can all be secret in combat. Secret values are never tested or
+compared; they are only passed to APIs that accept them.
+
+Checked against the Plater source (commit `36c2ee7`, 2026-09-27):
+
+- On Midnight clients Plater always sets `castBar.CanInterrupt = nil`, so the
+  mod reads the raw `castBar.notInterruptible` instead.
+- Plater guards its own per-spell cast colors with
+  `issecretvalue(self.spellID)`, so spell IDs can be secret. When one is, the
+  mod leaves that cast untouched, as Plater does.
+- `C_CurveUtil.EvaluateColorValueFromBoolean` and `SetAlphaFromBoolean` exist
+  and are used by Plater itself.
 
 | Symptom | Likely cause | What to report |
 | --- | --- | --- |
-| In combat, bars are only ever red/yellow, never purple | `C_CurveUtil.EvaluateColorValueFromBoolean` does not exist under that name; the mod falls back to priority colors | Whether purple ever appears in combat vs out of combat |
-| Border shows on uninterruptible casts in combat | `SetAlphaFromBoolean` and the `C_CurveUtil` fallback are both missing, so the border is always shown | Same as above |
-| Error mentioning "secret" in `Cast_Start.lua` at the spell table lookup | Enemy spell IDs are secret after all | Full error text |
-| Error mentioning "secret" inside `Plater.SetCastBarColor` or `SetCastBarSize` | Plater cannot take a value we pass it | Full error text and stack |
-| Out of combat, listed spells are always purple and never have a border | `self.CanInterrupt` is not set by this Plater version | Plater version |
+| Listed spells sometimes look like Plater's default in combat | The spell ID was secret for that cast, so it could not be looked up | Which spell, in which dungeon, how often |
+| Error mentioning "secret" inside `Plater.SetCastBarColor` or `SetNameplateScale` | Plater cannot take a value we pass it | Full error text and stack |
+| Colors are right out of combat but wrong in combat | Writing a secret color to the bar texture does not stick | What color shows instead |
 | Color flips back to Plater's default mid-cast | Plater recolors on its own; the mod only reapplies on interruptibility changes | When during the cast it happens |
-| Border comes back noticeably late | Cooldown is secret, and the fallback uses the base (untalented) cooldown | Class, spec, talent that shortens the interrupt, seconds late |
-| Border never shows for your class | Interrupt not detected; try `INTERRUPT_OVERRIDE` | Class, spec, whether override fixes it |
+| Enlarged nameplate overlaps its neighbors | Nameplate stacking uses the unscaled plate size | Whether it hurts readability; lower `DANGER_PLATE_SCALE` |
+| Only part of the nameplate grows, or parts drift apart | `SetNameplateScale` takes a different path when Plater's "Use UIParent" option is on | Whether that option is on, a screenshot |
+| Nameplate stays enlarged after the cast | Restore did not run for that cast | What happened to the mob (killed, CC'd, out of range) |
+| Glow comes back noticeably late | Cooldown is secret, and the fallback uses the base (untalented) cooldown | Class, spec, talent that shortens the interrupt, seconds late |
+| Glow never shows for your class | Interrupt not detected; try `INTERRUPT_OVERRIDE` | Class, spec, whether override fixes it |
 
 Notes on the cooldown fallback: when the cooldown can be read (usually out of
 combat), its real duration is remembered and used later. Otherwise the mod
@@ -173,5 +192,5 @@ Checklist items that failed:
 
 Errors (full text from BugSack or the error frame):
 
-Border timing offset vs action bar (seconds early/late):
+Glow timing offset vs action bar (seconds early/late):
 ```
