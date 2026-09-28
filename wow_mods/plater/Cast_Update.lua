@@ -4,21 +4,9 @@ function (self, unit, unitFrame, envTable, modTable)
         return
     end
 
-    local notInterruptible = self.notInterruptible
-
-
     ------------------------------------------------------------
-    -- Repaint on every update. Other cast bar mods (e.g. Jundies'
-    -- Enhanced Castbar) and Plater itself also color the bar, and
-    -- whoever paints last wins.
+    -- Track interruptibility and our own interrupt cooldown live
     ------------------------------------------------------------
 
-    modTable.ApplyCastColor(self, unitFrame, envTable, notInterruptible)
-
-
-    ------------------------------------------------------------
-    -- Track our own interrupt cooldown live
-    ------------------------------------------------------------
-
-    modTable.UpdateKickBorder(envTable, notInterruptible)
+    modTable.UpdateKickBorder(envTable, self.notInterruptible)
 end
