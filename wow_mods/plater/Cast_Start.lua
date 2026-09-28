@@ -1,4 +1,4 @@
-function (self, unit, unitFrame, envTable)
+function (self, unit, unitFrame, envTable, modTable)
 
     local spellID = self.SpellID
 
@@ -8,142 +8,58 @@ function (self, unit, unitFrame, envTable)
 
 
     ------------------------------------------------------------
-    -- 清理上一次由本 Mod 留下的状态
+    -- Undo whatever this mod applied to the previous cast
     ------------------------------------------------------------
 
     if envTable.Active then
-
-        Plater.SetCastBarColor(unitFrame)
-        Plater.SetCastBarSize(unitFrame)
-        Plater.SetCastBarBorderColor(self)
-
-        envTable.SetKickBorder(false)
-
-        envTable.Active = nil
-        envTable.CurrentPriority = nil
+        modTable.RestoreCastBar(unitFrame, envTable)
     end
 
 
     ------------------------------------------------------------
-    -- 判断技能类型
+    -- Classify the spell
     ------------------------------------------------------------
 
-    local dangerous =
-        envTable.DangerSpells[spellID] or
-        envTable.MechanicSpells[spellID]
+    if modTable.DangerSpells[spellID] or
+       modTable.MechanicSpells[spellID] then
 
-    local normal =
-        envTable.NormalSpells[spellID]
+        envTable.CurrentPriority = "danger"
 
+    elseif modTable.NormalSpells[spellID] then
 
-    -- 不在数据库里：
-    -- 完全不碰你原来的 Plater 样式
-    if not dangerous and not normal then
+        envTable.CurrentPriority = "normal"
+
+    else
+        -- Unlisted spells keep the stock Plater look
         return
     end
 
 
     ------------------------------------------------------------
-    -- 获取当前真实 interrupt 状态
+    -- May be a secret value in combat: only ever pass it to
+    -- the modTable helpers, never test or compare it here.
     ------------------------------------------------------------
 
-    local canInterrupt =
-        self.CanInterrupt == true
-
-
-    ------------------------------------------------------------
-    -- 保存原始尺寸
-    ------------------------------------------------------------
-
-    Plater.SetCastBarSize(unitFrame)
-
-    local baseWidth  = self:GetWidth()
-    local baseHeight = self:GetHeight()
+    local canInterrupt = self.CanInterrupt
 
 
     ------------------------------------------------------------
-    -- 危险技能
+    -- Danger spells get a bigger bar. The bar is at profile
+    -- size here: nothing enlarged it, or RestoreCastBar reset it.
     ------------------------------------------------------------
 
-    if dangerous then
-
-        envTable.CurrentPriority = "danger"
-
-        local newWidth =
-            baseWidth * envTable.WIDTH_SCALE
-
-        local newHeight =
-            baseHeight * envTable.HEIGHT_SCALE
+    if envTable.CurrentPriority == "danger" then
 
         Plater.SetCastBarSize(
             unitFrame,
-            newWidth,
-            newHeight
+            self:GetWidth()  * modTable.WIDTH_SCALE,
+            self:GetHeight() * modTable.HEIGHT_SCALE
         )
-
-
-        -- 可断：红色
-        if canInterrupt then
-
-            Plater.SetCastBarColor(
-                unitFrame,
-                1.00,
-                0.08,
-                0.08
-            )
-
-        -- 不可断：紫色
-        else
-
-            Plater.SetCastBarColor(
-                unitFrame,
-                0.72,
-                0.16,
-                0.95
-            )
-        end
-
-
-    ------------------------------------------------------------
-    -- 普通 interrupt
-    ------------------------------------------------------------
-
-    elseif normal then
-
-        envTable.CurrentPriority = "normal"
-
-        if canInterrupt then
-
-            Plater.SetCastBarColor(
-                unitFrame,
-                1.00,
-                0.82,
-                0.08
-            )
-
-        else
-
-            -- 如果临时变成不可打断，
-            -- 就不要继续骗你说这是黄色可断技能
-            Plater.SetCastBarColor(
-                unitFrame,
-                0.72,
-                0.16,
-                0.95
-            )
-        end
     end
 
 
-    ------------------------------------------------------------
-    -- Kick Ready Border
-    ------------------------------------------------------------
-
-    local showKickBorder =
-        canInterrupt and
-        envTable.InterruptReady()
-
-    envTable.SetKickBorder(showKickBorder)
+    modTable.ApplyCastColor(self, unitFrame, envTable, canInterrupt)
+    modTable.UpdateKickBorder(envTable, canInterrupt)
 
     envTable.Active = true
 end

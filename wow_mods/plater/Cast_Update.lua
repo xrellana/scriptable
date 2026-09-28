@@ -1,68 +1,27 @@
-function (self, unit, unitFrame, envTable)
+function (self, unit, unitFrame, envTable, modTable)
 
     if not envTable.Active then
         return
     end
 
-    local canInterrupt =
-        self.CanInterrupt == true
+    local canInterrupt = self.CanInterrupt
 
 
     ------------------------------------------------------------
-    -- 根据当前实际 interrupt 状态修正颜色
+    -- Recolor only when the interrupt state flips. A secret flag
+    -- cannot be compared, so in that case reapply every tick.
     ------------------------------------------------------------
 
-    if envTable.CurrentPriority == "danger" then
+    if modTable.IsSecret(canInterrupt) or
+       (canInterrupt == true) ~= envTable.LastCanInterrupt then
 
-        if canInterrupt then
-
-            Plater.SetCastBarColor(
-                unitFrame,
-                1.00,
-                0.08,
-                0.08
-            )
-
-        else
-
-            Plater.SetCastBarColor(
-                unitFrame,
-                0.72,
-                0.16,
-                0.95
-            )
-        end
-
-    elseif envTable.CurrentPriority == "normal" then
-
-        if canInterrupt then
-
-            Plater.SetCastBarColor(
-                unitFrame,
-                1.00,
-                0.82,
-                0.08
-            )
-
-        else
-
-            Plater.SetCastBarColor(
-                unitFrame,
-                0.72,
-                0.16,
-                0.95
-            )
-        end
+        modTable.ApplyCastColor(self, unitFrame, envTable, canInterrupt)
     end
 
 
     ------------------------------------------------------------
-    -- 实时检查自己的 interrupt CD
+    -- Track our own interrupt cooldown live
     ------------------------------------------------------------
 
-    local showKickBorder =
-        canInterrupt and
-        envTable.InterruptReady()
-
-    envTable.SetKickBorder(showKickBorder)
+    modTable.UpdateKickBorder(envTable, canInterrupt)
 end

@@ -1,21 +1,9 @@
-function (self, unit, unitFrame, envTable)
+function (self, unit, unitFrame, envTable, modTable)
 
-    if not envTable.Active then
-        envTable.SetKickBorder(false)
-        return
+    if envTable.Active then
+        modTable.RestoreCastBar(unitFrame, envTable)
+
+    elseif envTable.KickBorder then
+        envTable.KickBorder:Hide()
     end
-
-
-    ------------------------------------------------------------
-    -- 恢复 Plater 原始设置
-    ------------------------------------------------------------
-
-    Plater.SetCastBarColor(unitFrame)
-    Plater.SetCastBarSize(unitFrame)
-    Plater.SetCastBarBorderColor(self)
-
-    envTable.SetKickBorder(false)
-
-    envTable.Active = nil
-    envTable.CurrentPriority = nil
 end
