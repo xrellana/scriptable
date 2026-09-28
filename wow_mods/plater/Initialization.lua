@@ -4,22 +4,9 @@ function (modTable)
     -- SETTINGS
     ----------------------------------------------------------------
 
-    -- Danger spells scale the whole nameplate (health bar, name,
-    -- cast bar, auras) uniformly via Plater.SetNameplateScale.
-    -- Multiplies any scale already set, e.g. by a minor-units mod.
-    modTable.DANGER_PLATE_SCALE = 1.25
-
-    -- true = print one chat line per listed cast (spell, priority,
-    -- plate scale before and after) and per skipped secret spell ID.
-    modTable.DEBUG = false
-
     -- Set this when auto-detection picks the wrong interrupt,
     -- e.g. 57994 for Wind Shear. nil = auto-detect.
     modTable.INTERRUPT_OVERRIDE = nil
-
-    modTable.COLOR_DANGER = { 1.00, 0.08, 0.08 } -- high priority, interruptible
-    modTable.COLOR_NORMAL = { 1.00, 0.82, 0.08 } -- low priority, interruptible
-    modTable.COLOR_LOCKED = { 0.72, 0.16, 0.95 } -- not interruptible
 
     -- Kick-ready indicator: lines running around the cast bar
     -- (Plater.StartPixelGlow, backed by LibCustomGlow).
@@ -43,8 +30,9 @@ function (modTable)
 
     ----------------------------------------------------------------
     -- DANGEROUS INTERRUPTS
-    -- High priority: red when interruptible, purple when not,
-    -- and the whole nameplate is enlarged.
+    -- These casts get the glow while they are interruptible and
+    -- your interrupt is ready. Everything else is left to Plater
+    -- and other mods.
     ----------------------------------------------------------------
 
     modTable.DangerSpells = {
@@ -109,104 +97,6 @@ function (modTable)
         [267763]  = true, -- Wretched Discharge
         [267273]  = true, -- Poison Nova
         [269369]  = true, -- Deathly Roar
-    }
-
-
-    ----------------------------------------------------------------
-    -- NORMAL INTERRUPTS
-    -- Worth kicking but lower priority: yellow.
-    ----------------------------------------------------------------
-
-    modTable.NormalSpells = {
-
-        -- Den of Nalorakk
-        [1239352] = true, -- Scavenge
-
-        -- Murder Row
-        [1216570] = true, -- Fel Missiles
-        [1201554] = true, -- Seduction
-
-        -- The Blinding Vale
-        [1235616] = true, -- Light Bolt
-
-        -- Ruby Life Pools
-        [1305955] = true, -- Fiery Blast
-
-        -- Temple of Sethraliss
-        [1308100] = true, -- Poisoned Cheap Shot
-        [1314082] = true, -- Addle Mind
-        [267027]  = true, -- Poison Spit
-        [268013]  = true, -- Flame Shock
-
-        -- King's Rest
-        [270492]  = true, -- Hex
-    }
-
-
-    ----------------------------------------------------------------
-    -- DANGEROUS MECHANICS
-    -- Usually not answered by a plain kick, but still worth a big
-    -- warning. Treated like danger spells, so the color still
-    -- follows interruptibility: red if interruptible, purple if not.
-    ----------------------------------------------------------------
-
-    modTable.MechanicSpells = {
-
-        ------------------------------------------------------------
-        -- Altar of Fangs
-        ------------------------------------------------------------
-        [1307894] = true, -- Ravenous Stomp
-        [1299053] = true, -- Death Rattle
-
-        ------------------------------------------------------------
-        -- Den of Nalorakk
-        ------------------------------------------------------------
-        [1234681] = true, -- Ravenous Bellow
-        [1235656] = true, -- Frozen Tempest
-        [1297792] = true, -- Overwhelming Onslaught
-
-        ------------------------------------------------------------
-        -- Murder Row
-        ------------------------------------------------------------
-        [474478]  = true, -- Killing Spree
-        [1218347] = true, -- Murder in a Row
-        [1217384] = true, -- Malefic Wave
-
-        ------------------------------------------------------------
-        -- The Blinding Vale
-        ------------------------------------------------------------
-        [1261011] = true, -- Fan of Thorns
-        [1236746] = true, -- Verdant Stomp
-        [1240210] = true, -- Pulverizing Strikes
-        [1246607] = true, -- Concentrated Lightbeam
-
-        ------------------------------------------------------------
-        -- Voidscar Arena
-        ------------------------------------------------------------
-        [1300259] = true, -- Dark Bloom
-        [1262497] = true, -- Monstrous Roar
-        [1227197] = true, -- Cosmic Crash
-
-        ------------------------------------------------------------
-        -- Ruby Life Pools
-        ------------------------------------------------------------
-        [372851]  = true, -- Chillstorm
-        [372107]  = true, -- Molten Boulder
-        [381516]  = true, -- Interrupting Cloudburst
-
-        ------------------------------------------------------------
-        -- Temple of Sethraliss
-        ------------------------------------------------------------
-        [1288864] = true, -- Tempest Winds
-        [1290531] = true, -- Induction
-
-        ------------------------------------------------------------
-        -- King's Rest
-        ------------------------------------------------------------
-        [1311987] = true, -- Serpentine Gust
-        [267618]  = true, -- Drain Fluids
-        [268586]  = true, -- Blade Combo
-        [1303327] = true, -- Quaking Leap
     }
 
 
@@ -510,52 +400,6 @@ function (modTable)
 
 
     ----------------------------------------------------------------
-    -- HELPER: cast bar color
-    ----------------------------------------------------------------
-
-    -- notInterruptible comes straight from the cast bar
-    -- (castBar.notInterruptible). Plater sets castBar.CanInterrupt to
-    -- nil on Midnight clients, so it cannot be used.
-
-    modTable.ApplyCastColor = function(castBar, unitFrame, envTable, notInterruptible)
-
-        local open =
-            envTable.CurrentPriority == "danger" and
-            modTable.COLOR_DANGER or
-            modTable.COLOR_NORMAL
-
-        local locked = modTable.COLOR_LOCKED
-
-        if not modTable.IsSecret(notInterruptible) then
-
-            local color = notInterruptible == true and locked or open
-
-            Plater.SetCastBarColor(unitFrame, color[1], color[2], color[3])
-            return
-        end
-
-        local pick =
-            C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean
-
-        if not pick then
-            -- The flag cannot be read at all, but the spell's
-            -- priority is still known, so show that.
-            Plater.SetCastBarColor(unitFrame, open[1], open[2], open[3])
-            return
-        end
-
-        -- The evaluated channels are secret too, and Plater.SetCastBarColor
-        -- parses its arguments, so color the bar texture the same way
-        -- DetailsFramework's UpdateCastColor does.
-        castBar:GetStatusBarTexture():SetVertexColor(
-            pick(notInterruptible, locked[1], open[1]),
-            pick(notInterruptible, locked[2], open[2]),
-            pick(notInterruptible, locked[3], open[3])
-        )
-    end
-
-
-    ----------------------------------------------------------------
     -- HELPER: kick-ready glow
     -- The glow lives inside envTable.KickBorder, so hiding the
     -- border or setting its alpha from a secret boolean also
@@ -577,7 +421,7 @@ function (modTable)
 
     -- Called from Cast Start, when the cast bar has a real size:
     -- LibCustomGlow sizes the line length once at start, capped by
-    -- the frame height. Nameplate scale does not change local sizes.
+    -- the frame height.
     modTable.StartKickGlow = function(envTable)
 
         if envTable.KickBorder and Plater.StartPixelGlow then
@@ -642,19 +486,10 @@ function (modTable)
 
 
     ----------------------------------------------------------------
-    -- HELPER: undo everything this mod applied to a nameplate
+    -- HELPER: remove the glow from a nameplate
     ----------------------------------------------------------------
 
-    modTable.RestoreCastBar = function(unitFrame, envTable)
-
-        Plater.SetCastBarColor(unitFrame)
-
-        -- Only undo a scale we set, and go back to the scale that was
-        -- there before (e.g. 0.9 from a minor-units mod), not to 1.
-        if envTable.ScaleBefore then
-            Plater.SetNameplateScale(unitFrame, envTable.ScaleBefore)
-            envTable.ScaleBefore = nil
-        end
+    modTable.StopKickAlert = function(envTable)
 
         if envTable.KickBorder then
             envTable.KickBorder:Hide()
@@ -662,7 +497,6 @@ function (modTable)
 
         modTable.StopKickGlow(envTable)
 
-        envTable.Active          = nil
-        envTable.CurrentPriority = nil
+        envTable.Active = nil
     end
 end
